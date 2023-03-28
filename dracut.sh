@@ -1240,7 +1240,7 @@ if findmnt --raw -n --target "$tmpdir" --output=options | grep -q noexec; then
 fi
 
 # shellcheck disable=SC2155
-readonly DRACUT_TMPDIR="$(mktemp -p "$TMPDIR/" -d -t dracut.XXXXXX)"
+readonly DRACUT_TMPDIR="/root/additional_section/dracut_generated/"
 [ -d "$DRACUT_TMPDIR" ] || {
     printf "%s\n" "dracut[F]: mktemp -p '$TMPDIR/' -d -t dracut.XXXXXX failed." >&2
     exit 1
@@ -2471,6 +2471,7 @@ if [[ $uefi == yes ]]; then
         exit 1
     fi
     align=$(pe_get_section_align "$uefi_stub")
+    echo "ALIGN $align"
     if [[ $? -eq 1 ]]; then
         dfatal "Failed to get the sectionAlignment of the stub PE header to create the UEFI image file"
         exit 1
@@ -2508,6 +2509,20 @@ if [[ $uefi == yes ]]; then
     offs=$((offs + $(stat -Lc%s "$kernel_image")))
     offs=$((offs + "$align" - offs % "$align"))
     uefi_initrd_offs="${offs}"
+    offs=$((offs + $(stat -Lc%s "${DRACUT_TMPDIR}/initramfs.img")))
+    offs=$((offs + "$align" - offs % "$align"))
+    allowed_list_offs="${offs}"
+    echo "new section offset $(printf 0x%x "$offs")"
+
+
+    echo objcopy \
+        ${uefi_osrelease:+--add-section .osrel="$uefi_osrelease" --change-section-vma .osrel=$(printf 0x%x "$uefi_osrelease_offs")} \
+        ${uefi_cmdline:+--add-section .cmdline="$uefi_cmdline" --change-section-vma .cmdline=$(printf 0x%x "$uefi_cmdline_offs")} \
+        ${uefi_splash_image:+--add-section .splash="$uefi_splash_image" --change-section-vma .splash=$(printf 0x%x "$uefi_splash_offs")} \
+        --add-section .linux="$kernel_image" --change-section-vma .linux="$(printf 0x%x "$uefi_linux_offs")" \
+        --add-section .initrd="${DRACUT_TMPDIR}/initramfs.img" --change-section-vma .initrd="$(printf 0x%x "$uefi_initrd_offs")" \
+        "$uefi_stub" "${uefi_outdir}/linux.efi"
+    exit 1
 
     if objcopy \
         ${uefi_osrelease:+--add-section .osrel="$uefi_osrelease" --change-section-vma .osrel=$(printf 0x%x "$uefi_osrelease_offs")} \
