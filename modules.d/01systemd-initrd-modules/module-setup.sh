@@ -24,5 +24,9 @@ depends() {
 install() {
     inst_simple "$moddir/initrd-modules-copy.service" "${systemdsystemunitdir}"/initrd-modules-copy.service
 
+    for _f in modules.builtin.bin modules.order modules.alias modules.builtin.modinfo modules.softdep modules.alias.bin modules.dep modules.symbols modules.builtin modules.dep.bin modules.symbols.bin modules.builtin.alias.bin modules.devname; do
+        [[ -e $srcmods/$_f ]] && inst_simple "$srcmods/$_f" "/lib/modules/$kernel/$_f"
+    done
+
     $SYSTEMCTL -q --root "$initdir" enable initrd-modules-copy.service
 }
